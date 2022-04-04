@@ -13,8 +13,6 @@
 #define HOST_NAME "127.0.0.1"
 #define TCP_PORT_A "25959"
 
-using namespace std;
-
 char buffer_clientA[1024];
 
 int main(int argc, char* argv[]) {
