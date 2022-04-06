@@ -38,3 +38,8 @@
 cmake-build-debug/
 cmake-build-release/
 CMakeLists.txt
+
+# executable program
+serverA
+serverM
+clientA
