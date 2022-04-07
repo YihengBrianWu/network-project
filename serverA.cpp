@@ -66,7 +66,7 @@ void check_wallet(std::string user) {
 
     // close and return the balance
     infile.close();
-    printf("%d\n", result);
+//    printf("%d\n", result);
 
     // if user not exist
     if (!exist) {
@@ -81,6 +81,49 @@ void check_wallet(std::string user) {
     int send_len = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
     if (send_len <= 0) {
         perror("Can't send the result of check wallet method.");
+    }
+
+}
+
+void largest_serial_number() {
+
+    // largest serial number in this block
+    int n = 0;
+
+    // open file
+    std::ifstream infile;
+    infile.open(FILE_NAME, std::ios::in);
+
+    // get every line in the file
+    std::string transaction;
+    while(std::getline(infile, transaction)) {
+
+        // prevent there are more /n lines
+        if (transaction.empty()) {
+            continue;
+        }
+
+        // split the incoming line
+        std::vector<std::string> split;
+        std::stringstream stream(transaction);
+        while(stream.good()) {
+            std::string substring;
+            std::getline(stream, substring, ' ');
+            split.push_back(substring);
+        }
+
+        n = std::max(n, std::stoi(split.at(0)));
+
+    }
+
+    // close file
+    infile.close();
+
+    // send the largest serial number of this block to server M
+    sprintf(buffer, "%d", n);
+    int send_len = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+    if (send_len <= 0) {
+        perror("Can't send the result of serial number method.");
     }
 
 }
@@ -148,14 +191,18 @@ int main(int argc, char* argv[]) {
 
         }
 
+        else if (split.at(0) == "SERIAL") {
+            largest_serial_number();
+        }
+
         // check wallet
         else {
             check_wallet(split.at(0));
         }
 
 
-        printf("%s", message.c_str());
-        printf("\n");
+//        printf("%s", message.c_str());
+//        printf("\n");
         printf("The ServerA finished sending the response to the Main Server.");
         printf("\n");
     }

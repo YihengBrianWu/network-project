@@ -76,6 +76,61 @@ int check_wallet(std::string user, bool from_client) {
 
 }
 
+std::string transfer_money (std::string sender, std::string receiver, int amount) {
+
+    // first let's check the balance of sender and receiver
+    int sender_balance = check_wallet(sender, false);
+    int receiver_balance = check_wallet(receiver, false);
+
+    // all failed cases
+    if (sender_balance == INT_MIN && receiver_balance == INT_MIN) {
+        return "BNEXIST"; // both not exist in the network
+    }
+    if (sender_balance == INT_MIN) {
+        return "SNEXIST"; // sender not exist in the network
+    }
+    if (receiver_balance == INT_MIN) {
+        return "RNEXIST"; // receiver not exist in the network
+    }
+    if (sender_balance < amount) {
+        return "NOTENOUGH" + std::to_string(sender_balance); // balance is not enough to complete this transfer
+    }
+
+    // the transfer can be done when program arrive this position and we need to request the serial number;
+    int serial_number = 0;
+    int len_send;
+    int len_recv;
+    sprintf(send_buffer, "SERIAL");
+    // request the serial number from server A
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send SERIAL command to server A.");
+    }
+    else {
+        printf("The main server sent a request to server A.");
+        printf("\n");
+        // clear recv buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive the result of TXCOINS command from server A.");
+        }
+        else {
+            serial_number = std::max(serial_number, atoi(recv_buffer));
+        }
+    }
+
+    serial_number += 1;
+
+    // after get the serial number, write it to the random backend server
+    // TODO random select
+    // TODO write to the backend server
+    printf("serial number: %d\n", serial_number);
+
+    return std::to_string(sender_balance - amount);
+
+}
+
 int main(int argc, char* argv[]) {
 
     // create sockets for client A
@@ -172,6 +227,21 @@ int main(int argc, char* argv[]) {
                 // TXLIST command
                 if (split.at(0) == "TXLIST") {
 
+                }
+                // TXCOINS transfer money command
+                else if (split.at(0) == "TRANSFER") {
+                    printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientA_address.sin_port);
+                    printf("\n");
+
+                    std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
+                    sprintf(send_buffer, "%s", result.c_str());
+                    // send the result to the client A
+                    printf("The main server sent the result of the transaction to client A.");
+                    printf("\n");
+                    int len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+                    if (len_send <= 0) {
+                        perror("Can't send the result of check wallet command to client A.");
+                    }
                 }
                 // check wallet command
                 else {

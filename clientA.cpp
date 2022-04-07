@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
                 perror("Error occurred in send phase.");
                 return -1;
             }
-            printf("clientA sent a check wallet request to the main server.");
+            printf("\"%s\" sent a balance enquiry request to the main server.", argv[1]);
             printf("\n");
             // clear receive buffer
             memset(recv_buffer, 0, sizeof(recv_buffer));
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
                 printf("Unable to proceed with the request as %s is not part of the network.", argv[1]);
                 printf("\n");
             } else {
-                printf("The current balance of \"%s\" is: %d alicoins.\n", argv[1], result);
+                printf("The current balance of \"%s\" is : %d alicoins.\n", argv[1], result);
             }
         }
 
@@ -127,8 +127,39 @@ int main(int argc, char* argv[]) {
             perror("Error occurred in send phase.");
             return -1;
         }
-        printf("%s has requested to transfer %s coins to %s.", argv[1], argv[3], argv[2]);
+        printf("\"%s\" has requested to transfer %s coins to \"%s\".", argv[1], argv[3], argv[2]);
         printf("\n");
+        // receive message back from serverM
+        // clear receiver buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        int len_recv = recv(sock, recv_buffer, sizeof(recv_buffer), 0);
+        if (len_recv <= 0) {
+            perror("Can't receive the result of check wallet command from server M.");
+            return -1;
+        }
+        std::string result(recv_buffer);
+        if (result == "BNEXIST") {
+            printf("Unable to proceed with the transaction as \"%s\" and \"%s\" are not part of the network.", argv[1], argv[2]);
+            printf("\n");
+        }
+        else if (result == "SNEXIST") {
+            printf("Unable to proceed with the transaction as \"%s\" is not part of the network.",argv[1]);
+            printf("\n");
+        }
+        else if (result == "RNEXIST") {
+            printf("Unable to proceed with the transaction as \"%s\" is not part of the network.",argv[2]);
+            printf("\n");
+        }
+        else if (result.substr(0, 9) == "NOTENOUGH") {
+            printf("\"%s\" was unable to transfer %s alicoins to \"%s\" because of insufficient balance. ", argv[1], argv[3], argv[2]);
+            printf("The current balance of \"%s\" is : %s alicoins.", argv[1], result.substr(9).c_str());
+            printf("\n");
+        }
+        else {
+            printf("\"%s\" successfully transferred %s alicoins to \"%s\". ", argv[1], argv[3], argv[2]);
+            printf("The current balance of \"%s\" is : %d alicoins.", argv[1], std::stoi(result));
+            printf("\n");
+        }
     }
 
     close(sock);
