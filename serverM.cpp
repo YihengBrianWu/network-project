@@ -125,6 +125,14 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     // after get the serial number, write it to the random backend server
     // TODO random select
     // TODO write to the backend server
+    sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send transfer data to Server A.");
+    }
+    else {
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+    }
     printf("serial number: %d\n", serial_number);
 
     return std::to_string(sender_balance - amount);

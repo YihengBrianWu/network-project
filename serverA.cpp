@@ -128,6 +128,22 @@ void largest_serial_number() {
 
 }
 
+void save_data(int serial_number, std::string sender, std::string receiver, int amount) {
+
+    std::ofstream output;
+    output.open(FILE_NAME, std::ios::app);
+    output << serial_number << " " << sender << " " << receiver << " " << amount << std::endl;
+
+    sprintf(buffer, "Log Saved.");
+    int len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send log saved successful message back to server M.");
+    }
+
+    output.close();
+
+}
+
 int main(int argc, char* argv[]) {
 
     // create UDP socket
@@ -193,6 +209,10 @@ int main(int argc, char* argv[]) {
 
         else if (split.at(0) == "SERIAL") {
             largest_serial_number();
+        }
+
+        else if (split.at(0) == "SAVE"){
+            save_data(std::stoi(split.at(1)), split.at(2), split.at(3), std::stoi(split.at(4)));
         }
 
         // check wallet
