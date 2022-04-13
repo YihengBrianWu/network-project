@@ -130,9 +130,36 @@ void largest_serial_number() {
 
 void save_data(int serial_number, std::string sender, std::string receiver, int amount) {
 
+
+    // input file
+    std::ifstream input;
+    input.open(FILE_NAME, std::ios::in);
+
+    // vector to store lines get from file
+    std::vector<std::string> messages;
+
+    // get every line in the file
+    std::string transaction;
+    while(std::getline(input, transaction)) {
+        // filter of blank lines
+        if (transaction.empty()) {
+            continue;
+        }
+        messages.push_back(transaction);
+    }
+
+    input.close();
+
     std::ofstream output;
-    output.open(FILE_NAME, std::ios::app);
-    output << serial_number << " " << sender << " " << receiver << " " << amount << std::endl;
+    output.open(FILE_NAME, std::ios::out);
+
+    for (int i = 0; i < messages.size(); i++) {
+
+        output << messages.at(i) << std::endl;
+
+    }
+
+    output << serial_number << " " << sender << " " << receiver << " " << amount;
 
     sprintf(buffer, "Log Saved.");
     int len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
@@ -141,6 +168,49 @@ void save_data(int serial_number, std::string sender, std::string receiver, int 
     }
 
     output.close();
+
+}
+
+void sendAll() {
+
+    // send length and receiver length
+    int len_send;
+    int len_recv;
+
+    // load all data
+    // input file
+    std::ifstream input;
+    input.open(FILE_NAME, std::ios::in);
+
+    // vector to store lines get from file
+    std::vector<std::string> messages;
+
+    // get every line in the file
+    std::string transaction;
+    while(std::getline(input, transaction)) {
+        // filter of blank lines
+        if (transaction.empty()) {
+            continue;
+        }
+        messages.push_back(transaction);
+    }
+
+    // send length of messages to server M;
+    sprintf(buffer, "%lu", messages.size());
+    len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send length of records to server M.");
+    }
+    else {
+        for (int i = 0; i < messages.size(); i++) {
+            sprintf(buffer, "%s", messages.at(i).c_str());
+            len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+            if (len_send <= 0) {
+                perror("Can't send record detail to server M.");
+            }
+        }
+    }
+
 
 }
 
@@ -203,8 +273,8 @@ int main(int argc, char* argv[]) {
         }
 
         // TXLIST command
-        if (split.at(0) == "TXLIST") {
-
+        if (split.at(0) == "GET") {
+            sendAll();
         }
 
         else if (split.at(0) == "SERIAL") {

@@ -10,12 +10,14 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <fstream>
 
 #define TCP_PORT_A "25959" // server's port for TCP connection to client A
 #define TCP_PORT_B "26959" // server's port for TCP connection to client B
 #define UDP_PORT "24959" // serverM's UDP port
 #define UDP_PORT_A  "21959" // serverA's UDP port
 #define HOST_NAME "127.0.0.1"
+#define OUTPUT_FILE "alichain.txt"
 
 char send_buffer[1024];
 char recv_buffer[1024];
@@ -25,6 +27,14 @@ struct addrinfo *info_A;
 struct addrinfo *info_UDP;
 struct addrinfo *info_UDP_A;
 struct sockaddr_in clientA_address;
+
+// data structure of transaction
+struct transaction {
+    int serial;
+    std::string sender;
+    std::string receiver;
+    int amount;
+};
 
 int check_wallet(std::string user, bool from_client) {
 
@@ -124,7 +134,6 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
 
     // after get the serial number, write it to the random backend server
     // TODO random select
-    // TODO write to the backend server
     sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
     len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
     if (len_send <= 0) {
@@ -132,11 +141,83 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     }
     else {
         memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive message back from random server.");
+        }
     }
-    printf("serial number: %d\n", serial_number);
+
 
     return std::to_string(sender_balance - amount);
 
+}
+
+bool record_compare(transaction a, transaction b) {
+    return a.serial < b.serial;
+}
+
+void sorted_list() {
+
+    std::vector<transaction> records;
+
+    // send length and receive length
+    int len_send;
+    int len_recv;
+
+    // get records from server A
+    sprintf(send_buffer, "GET");
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server A.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server A.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server A.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
+    // sort record
+    std::sort(records.begin(), records.end(), record_compare);
+    std::ofstream output;
+    output.open(OUTPUT_FILE, std::ios::out);
+    for (int i = 0; i < records.size(); i++) {
+        transaction t = records.at(i);
+        output << t.serial << " " << t.sender << " " << t.receiver << " " << t.amount << std::endl;
+    }
+
+    output.close();
 }
 
 int main(int argc, char* argv[]) {
@@ -234,7 +315,7 @@ int main(int argc, char* argv[]) {
                 }
                 // TXLIST command
                 if (split.at(0) == "TXLIST") {
-
+                    sorted_list();
                 }
                 // TXCOINS transfer money command
                 else if (split.at(0) == "TRANSFER") {
