@@ -141,20 +141,26 @@ int main(int argc, char* argv[]) {
 
         // split incoming message
         std::string message(recv_buffer);
-        printf("%s\n", recv_buffer);
-        std::vector<std::string> split;
-        std::stringstream stream(message);
-        while(stream.good()) {
-            std::string substring;
-            std::getline(stream, substring, ',');
-            split.push_back(substring);
+
+        if (message == "NOTEXIST") {
+            printf("Unable to proceed with the STATS command as \"%s\" is not part of the network.", argv[1]);
+            printf("\n");
         }
+        else {
+            std::vector<std::string> split;
+            std::stringstream stream(message);
+            while(stream.good()) {
+                std::string substring;
+                std::getline(stream, substring, ',');
+                split.push_back(substring);
+            }
 
-        printf("%s statistics are the following.:\n",argv[1]);
-        printf("Rank - Username - Transactions - Amount\n");
+            printf("%s statistics are the following.:\n",argv[1]);
+            printf("Rank - Username - Transactions - Amount\n");
 
-        for (int i = 1; i <= split.size(); i++) {
-            printf("%d %s\n", i, split.at(i - 1).c_str());
+            for (int i = 1; i <= split.size(); i++) {
+                printf("%d %s\n", i, split.at(i - 1).c_str());
+            }
         }
 
     }

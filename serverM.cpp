@@ -302,9 +302,17 @@ void sorted_list() {
 
 void statistics(std::string name) {
 
+    // length send
+    int len_send;
+
     int exist = check_wallet(name, false);
     if (exist == INT_MIN) {
-        // TODO not exist
+        // return error message
+        sprintf(send_buffer, "NOTEXIST");
+        len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+        if (len_send <= 0) {
+            perror("Can't send statistics result to client A");
+        }
         return;
     }
 
@@ -367,9 +375,6 @@ void statistics(std::string name) {
 
     // sort by transaction number
     std::sort(stats.begin(), stats.end(), stats_compare);
-
-    // length send
-    int len_send;
 
     // send length of messages to client A
     for (int i = 0; i < stats.size(); i++) {
@@ -483,7 +488,11 @@ int main(int argc, char* argv[]) {
                 }
                 // TXLIST command
                 if (split.at(0) == "TXLIST") {
+                    printf("A TXLIST request has been received.");
+                    printf("\n");
                     sorted_list();
+                    printf("The sorted file is up and ready.");
+                    printf("\n");
                 }
                 // TXCOINS transfer money command
                 else if (split.at(0) == "TRANSFER") {
@@ -502,6 +511,8 @@ int main(int argc, char* argv[]) {
                 }
                 // statistics
                 else if (split.at(0) == "STAT") {
+                    printf("A STATS request has been received.");
+                    printf("\n");
                     statistics(split.at(1));
                 }
                 // check wallet command
