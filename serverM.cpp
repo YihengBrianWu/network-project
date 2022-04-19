@@ -1,9 +1,8 @@
 // Created by Yiheng Wu on 4/2/22.
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <stdlib.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -18,6 +17,8 @@
 #define TCP_PORT_B "26959" // server's port for TCP connection to client B
 #define UDP_PORT "24959" // serverM's UDP port
 #define UDP_PORT_A  "21959" // serverA's UDP port
+#define UDP_PORT_B "22959" // serverB's UDP port
+#define UDP_PORT_C "23959" // serverC's UDP port
 #define HOST_NAME "127.0.0.1"
 #define OUTPUT_FILE "alichain.txt"
 
@@ -29,6 +30,8 @@ int childSocket_A;
 struct addrinfo *info_A;
 struct addrinfo *info_UDP;
 struct addrinfo *info_UDP_A;
+struct addrinfo *info_UDP_B;
+struct addrinfo *info_UDP_C;
 struct sockaddr_in clientA_address;
 
 // data structure for transaction
@@ -52,6 +55,12 @@ struct statistics_main {
     std::string name;
 };
 
+/**
+ *
+ * @param user user name
+ * @param from_client if it's a check wallet command from client or it's used by serverM to get the balance
+ * @return the balance of user, INT_MIN means this user doesn't exist
+ */
 int check_wallet(std::string user, bool from_client) {
 
     // check if the user exists in all blocks
@@ -70,6 +79,7 @@ int check_wallet(std::string user, bool from_client) {
         perror("Can't send check wallet command to server A.");
     }
     else {
+        // this function is called by clientA, not for sever M to check balance
         if(from_client) {
             printf("The main server sent a request to server A.");
             printf("\n");
@@ -82,7 +92,67 @@ int check_wallet(std::string user, bool from_client) {
         }
         else {
             if (from_client) {
-                printf("The main server received transactions from Server A using UDP over port %s.", UDP_PORT_A);
+                printf("The main server received transactions from Server A using UDP over port %s.", UDP_PORT);
+                printf("\n");
+            }
+            std::string recv_message(recv_buffer);
+            if (recv_message != "NOTEXIST") {
+                exist = true;
+                balance += std::stoi(recv_message);
+            }
+        }
+    }
+
+    // send to serverB
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send check wallet command to server B.");
+    }
+    else {
+        // this function is called by clientA, not for sever M to check balance
+        if(from_client) {
+            printf("The main server sent a request to server B.");
+            printf("\n");
+        }
+        // clear recv buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive the result of check wallet command from server B.");
+        }
+        else {
+            if (from_client) {
+                printf("The main server received transactions from Server B using UDP over port %s.", UDP_PORT_B);
+                printf("\n");
+            }
+            std::string recv_message(recv_buffer);
+            if (recv_message != "NOTEXIST") {
+                exist = true;
+                balance += std::stoi(recv_message);
+            }
+        }
+    }
+
+    // send to serverC
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send check wallet command to server C.");
+    }
+    else {
+        // this function is called by clientA, not for sever M to check balance
+        if(from_client) {
+            printf("The main server sent a request to server C.");
+            printf("\n");
+        }
+        // clear recv buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive the result of check wallet command from server C.");
+        }
+        else {
+            if (from_client) {
+                printf("The main server received transactions from Server C using UDP over port %s.", UDP_PORT_C);
                 printf("\n");
             }
             std::string recv_message(recv_buffer);
@@ -102,11 +172,29 @@ int check_wallet(std::string user, bool from_client) {
 
 }
 
+/**
+ *
+ * @param sender sender name
+ * @param receiver receiver name
+ * @param amount transfer amount
+ * @return a message to indicate if transfer can happen.
+ */
 std::string transfer_money (std::string sender, std::string receiver, int amount) {
+
+    printf("The main server sent a request to server A.");
+    printf("\n");
 
     // first let's check the balance of sender and receiver
     int sender_balance = check_wallet(sender, false);
     int receiver_balance = check_wallet(receiver, false);
+
+    // after querying both sender and receiver's feedback from three end servers.
+    printf("The main server received the feedback from server A using UDP over port %s.", UDP_PORT);
+    printf("\n");
+    printf("The main server received the feedback from server B using UDP over port %s.", UDP_PORT);
+    printf("\n");
+    printf("The main server received the feedback from server C using UDP over port %s.", UDP_PORT);
+    printf("\n");
 
     // all failed cases
     if (sender_balance == INT_MIN && receiver_balance == INT_MIN) {
@@ -127,14 +215,13 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     int len_send;
     int len_recv;
     sprintf(send_buffer, "SERIAL");
+
     // request the serial number from server A
     len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
     if (len_send <= 0) {
         perror("Can't send SERIAL command to server A.");
     }
     else {
-        printf("The main server sent a request to server A.");
-        printf("\n");
         // clear recv buffer
         memset(recv_buffer, 0, sizeof(recv_buffer));
         len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
@@ -146,36 +233,71 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         }
     }
 
+    // request the serial number from server B
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send SERIAL command to server B.");
+    }
+    else {
+        // clear recv buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive the result of TXCOINS command from server B.");
+        }
+        else {
+            serial_number = std::max(serial_number, atoi(recv_buffer));
+        }
+    }
+
     serial_number += 1;
 
     // after get the serial number, write it to the random backend server
-    // TODO random select
-    sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
-    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
-    if (len_send <= 0) {
-        perror("Can't send transfer data to Server A.");
+    // get random number from range 0 - 2
+    int random = rand() % 3;
+    // write to server A
+    if (random == 0) {
+        sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
+        len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
+        if (len_send <= 0) {
+            perror("Can't send transfer data to Server A.");
+        }
     }
-//    else {
-//        memset(recv_buffer, 0, sizeof(recv_buffer));
-//        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
-//        if (len_recv <= 0) {
-//            perror("Can't receive message back from random server.");
-//        }
-//    }
-
+    // write to server B
+    else if (random == 1) {
+        sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
+        len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
+        if (len_send <= 0) {
+            perror("Can't send transfer data to Server A.");
+        }
+    }
+    // write to server C
+    else {
+        sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
+        len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
+        if (len_send <= 0) {
+            perror("Can't send transfer data to Server A.");
+        }
+    }
 
     return std::to_string(sender_balance - amount);
 
 }
 
+// compare method for struct transaction, DESC by serial number
 bool record_compare(transaction a, transaction b) {
     return a.serial < b.serial;
 }
 
+// compare method for struct statistics_main, DESC by number of transactions
 bool stats_compare(statistics_main a, statistics_main b) {
     return a.transactions > b.transactions;
 }
 
+/**
+ * get all records from all data server, for sorted lists command
+ * @param records vector to store records
+ */
 void get_record_from_all_server(std::vector<transaction>& records) {
 
     // send length and receive length
@@ -226,8 +348,101 @@ void get_record_from_all_server(std::vector<transaction>& records) {
         }
     }
 
+    // get records from server B
+    sprintf(send_buffer, "GET");
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server B.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server B.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server B.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
+    // get records from server C
+    sprintf(send_buffer, "GET");
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server C.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server C.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server A.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
 }
 
+/**
+ * get distinct user's records from all server
+ * @param records vector to store records
+ * @param name user name
+ */
 void get_distinct_record_from_all_server(std::vector<transaction>& records, std::string name) {
 
     // send length and receive length
@@ -278,10 +493,99 @@ void get_distinct_record_from_all_server(std::vector<transaction>& records, std:
         }
     }
 
+    // get records from server B
+    sprintf(send_buffer, "GETDISTINCT,%s", name.c_str());
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server A.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server B.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_B -> ai_addr, &(info_UDP_B -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server B.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
+    // get records from server C
+    sprintf(send_buffer, "GETDISTINCT,%s", name.c_str());
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server C.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server C.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server C.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
 }
 
-
-
+/**
+ * to sort records and write the sorted records to alichain.txt
+ */
 void sorted_list() {
 
     std::vector<transaction> records;
@@ -300,6 +604,10 @@ void sorted_list() {
     output.close();
 }
 
+/**
+ * method to handle statistics operation
+ * @param name user name
+ */
 void statistics(std::string name) {
 
     // length send
@@ -442,6 +750,18 @@ int main(int argc, char* argv[]) {
     info_UDP_A -> ai_family = AF_INET;
     info_UDP_A -> ai_socktype = SOCK_DGRAM;
     getaddrinfo(HOST_NAME, UDP_PORT_A, 0, &info_UDP_A);
+
+    // get serverB address
+    info_UDP_B = new addrinfo;
+    info_UDP_B -> ai_family = AF_INET;
+    info_UDP_B -> ai_socktype = SOCK_DGRAM;
+    getaddrinfo(HOST_NAME, UDP_PORT_B, 0, &info_UDP_B);
+
+    // get serverC address
+    info_UDP_C = new addrinfo;
+    info_UDP_C -> ai_family = AF_INET;
+    info_UDP_C  -> ai_socktype = SOCK_DGRAM;
+    getaddrinfo(HOST_NAME, UDP_PORT_C, 0, &info_UDP_C);
 
 
     // listen to sockA

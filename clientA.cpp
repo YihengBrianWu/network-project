@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
                 perror("Error occurred in send phase.");
                 return -1;
             }
-            printf("clientA sent a sorted list request to the main server.");
+            printf("ClientA sent a sorted list request to the main server.");
             printf("\n");
         }
 
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
                 perror("Error occurred in send phase.");
                 return -1;
             }
-            printf("clientA sent a END request to the main server.");
+            printf("ClientA sent a END request to the main server.");
             printf("\n");
         }
 

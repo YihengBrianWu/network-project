@@ -1,6 +1,6 @@
-// Created by Yiheng Wu on 4/4/22.
+// Created by Yiheng Wu on 4/19/22.
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,10 +10,10 @@
 #include <sstream>
 #include <fstream>
 
-#define UDP_PORT_A "21959"
+#define UDP_PORT_B "22959"
 #define UDP_PORT_M "24959"
 #define HOST_NAME "127.0.0.1"
-#define FILE_NAME "block1.txt"
+#define FILE_NAME "block2.txt"
 
 char send_buffer[1024];
 char recv_buffer[1024];
@@ -42,6 +42,7 @@ void check_wallet(std::string user) {
             continue;
         }
 
+        // split every line by space
         std::vector<std::string> split;
         std::stringstream stream(transaction);
         while(stream.good()) {
@@ -55,7 +56,7 @@ void check_wallet(std::string user) {
             exist = true;
             result -= std::stoi(split.at(3));
         }
-            // user is receiver
+        // user is receiver
         else if (split.at(2) == user) {
             exist = true;
             result += std::stoi(split.at(3));
@@ -70,7 +71,7 @@ void check_wallet(std::string user) {
     if (!exist) {
         sprintf(send_buffer, "NOTEXIST");
     }
-        // if user exist
+    // if user exist
     else {
         sprintf(send_buffer, "%d", result);
     }
@@ -284,7 +285,7 @@ int main(int argc, char* argv[]) {
     info_server = new addrinfo;
     info_server->ai_family = AF_INET;
     info_server->ai_socktype = SOCK_DGRAM;
-    getaddrinfo(HOST_NAME, UDP_PORT_A, 0, &info_server);
+    getaddrinfo(HOST_NAME, UDP_PORT_B, 0, &info_server);
 
     // bind socket
     if (bind(sock, info_server -> ai_addr, info_server -> ai_addrlen) != 0) {
@@ -301,7 +302,7 @@ int main(int argc, char* argv[]) {
 
 
     // boot up message
-    printf("The ServerA is up and running using UDP on port %s.", UDP_PORT_A);
+    printf("The ServerA is up and running using UDP on port %s.", UDP_PORT_B);
     printf("\n");
 
     // read and write
@@ -314,7 +315,7 @@ int main(int argc, char* argv[]) {
             perror("Can't receive message from server M, something wrong here!");
             continue;
         }
-        printf("The Server A received a request from the Main Server.");
+        printf("The Server B received a request from the Main Server.");
         printf("\n");
         std::string message(recv_buffer);
 
@@ -355,7 +356,7 @@ int main(int argc, char* argv[]) {
 
 //        printf("%s", message.c_str());
 //        printf("\n");
-        printf("The Server A finished sending the response to the Main Server.");
+        printf("The Server B finished sending the response to the Main Server.");
         printf("\n");
     }
 
