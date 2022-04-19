@@ -161,21 +161,20 @@ void save_data(int serial_number, std::string sender, std::string receiver, int 
 
     output << serial_number << " " << sender << " " << receiver << " " << amount;
 
-    sprintf(buffer, "Log Saved.");
-    int len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
-    if (len_send <= 0) {
-        perror("Can't send log saved successful message back to server M.");
-    }
+//    sprintf(buffer, "Log Saved.");
+//    int len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+//    if (len_send <= 0) {
+//        perror("Can't send log saved successful message back to server M.");
+//    }
 
     output.close();
 
 }
 
-void sendAll() {
+void send_all_transaction() {
 
-    // send length and receiver length
+    // send length
     int len_send;
-    int len_recv;
 
     // load all data
     // input file
@@ -211,6 +210,64 @@ void sendAll() {
         }
     }
 
+
+}
+
+void send_distinct_transaction(std::string name) {
+
+    // open file
+    std::ifstream infile;
+    infile.open(FILE_NAME, std::ios::in);
+
+    // send length
+    int len_send;
+
+    // vector to store lines get from file
+    std::vector<std::string> messages;
+
+    // get every line in the file
+    std::string transaction;
+    while(std::getline(infile, transaction)) {
+
+        if (transaction.empty()) {
+            continue;
+        }
+
+        // split by space
+        std::vector<std::string> split;
+        std::stringstream stream(transaction);
+        while(stream.good()) {
+            std::string substring;
+            std::getline(stream, substring, ' ');
+            split.push_back(substring);
+        }
+
+        // if name is user or sender, then we store this record
+        if (split.at(1) == name || split.at(2) == name) {
+            messages.push_back(transaction);
+        }
+
+    }
+
+    // send the length of record, then send all transactions to server M
+    // send length of messages to server M;
+    sprintf(buffer, "%lu", messages.size());
+    len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send length of records to server M.");
+    }
+    else {
+        for (int i = 0; i < messages.size(); i++) {
+            sprintf(buffer, "%s", messages.at(i).c_str());
+            len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
+            if (len_send <= 0) {
+                perror("Can't send record detail to server M.");
+            }
+        }
+    }
+
+    // close and return the balance
+    infile.close();
 
 }
 
@@ -272,15 +329,22 @@ int main(int argc, char* argv[]) {
             split.push_back(substring);
         }
 
-        // TXLIST command
+        // get record
         if (split.at(0) == "GET") {
-            sendAll();
+            send_all_transaction();
         }
 
+        // get record by name
+        else if (split.at(0) == "GETDISTINCT") {
+            send_distinct_transaction(split.at(1));
+        }
+
+        // get serial number
         else if (split.at(0) == "SERIAL") {
             largest_serial_number();
         }
 
+        // save log
         else if (split.at(0) == "SAVE"){
             save_data(std::stoi(split.at(1)), split.at(2), split.at(3), std::stoi(split.at(4)));
         }

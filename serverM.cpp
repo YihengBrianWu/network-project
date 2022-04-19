@@ -11,6 +11,8 @@
 #include <vector>
 #include <sstream>
 #include <fstream>
+#include <iostream>
+#include <map>
 
 #define TCP_PORT_A "25959" // server's port for TCP connection to client A
 #define TCP_PORT_B "26959" // server's port for TCP connection to client B
@@ -23,17 +25,31 @@ char send_buffer[1024];
 char recv_buffer[1024];
 int sockA;
 int sock_UDP;
+int childSocket_A;
 struct addrinfo *info_A;
 struct addrinfo *info_UDP;
 struct addrinfo *info_UDP_A;
 struct sockaddr_in clientA_address;
 
-// data structure of transaction
+// data structure for transaction
 struct transaction {
     int serial;
     std::string sender;
     std::string receiver;
     int amount;
+};
+
+// data structure for statistics
+struct statistics {
+    int transactions;
+    int amount;
+};
+
+// data structure for statistics with name
+struct statistics_main {
+    int transactions;
+    int amount;
+    std::string name;
 };
 
 int check_wallet(std::string user, bool from_client) {
@@ -139,13 +155,13 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     if (len_send <= 0) {
         perror("Can't send transfer data to Server A.");
     }
-    else {
-        memset(recv_buffer, 0, sizeof(recv_buffer));
-        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
-        if (len_recv <= 0) {
-            perror("Can't receive message back from random server.");
-        }
-    }
+//    else {
+//        memset(recv_buffer, 0, sizeof(recv_buffer));
+//        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+//        if (len_recv <= 0) {
+//            perror("Can't receive message back from random server.");
+//        }
+//    }
 
 
     return std::to_string(sender_balance - amount);
@@ -156,9 +172,11 @@ bool record_compare(transaction a, transaction b) {
     return a.serial < b.serial;
 }
 
-void sorted_list() {
+bool stats_compare(statistics_main a, statistics_main b) {
+    return a.transactions > b.transactions;
+}
 
-    std::vector<transaction> records;
+void get_record_from_all_server(std::vector<transaction>& records) {
 
     // send length and receive length
     int len_send;
@@ -208,6 +226,68 @@ void sorted_list() {
         }
     }
 
+}
+
+void get_distinct_record_from_all_server(std::vector<transaction>& records, std::string name) {
+
+    // send length and receive length
+    int len_send;
+    int len_recv;
+
+    // get records from server A
+    sprintf(send_buffer, "GETDISTINCT,%s", name.c_str());
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_A -> ai_addr, info_UDP_A -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send GET command to server A.");
+    }
+    else {
+        // clear buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // get length of record from server A
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't get length of record from server A.");
+        }
+        else {
+            int length = atoi(recv_buffer);
+            for (int i = 0; i < length; i++) {
+                // clear buffer
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_A -> ai_addr, &(info_UDP_A -> ai_addrlen));
+                if (len_recv <= 0) {
+                    perror("Can't get record detail from server A.");
+                }
+                else {
+                    // split record by ' '
+                    std::string detail(recv_buffer);
+                    std::vector<std::string> split;
+                    std::stringstream stream(detail);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ' ');
+                        split.push_back(substring);
+                    }
+                    transaction t;
+                    t.serial = std::stoi(split.at(0));
+                    t.sender = split.at(1);
+                    t.receiver = split.at(2);
+                    t.amount = std::stoi(split.at(3));
+                    records.push_back(t);
+                }
+            }
+        }
+    }
+
+}
+
+
+
+void sorted_list() {
+
+    std::vector<transaction> records;
+
+    get_record_from_all_server(records);
+
     // sort record
     std::sort(records.begin(), records.end(), record_compare);
     std::ofstream output;
@@ -218,6 +298,94 @@ void sorted_list() {
     }
 
     output.close();
+}
+
+void statistics(std::string name) {
+
+    int exist = check_wallet(name, false);
+    if (exist == INT_MIN) {
+        // TODO not exist
+        return;
+    }
+
+    // if existed, get record from every backend server
+    std::vector<transaction> records;
+
+    // get all transactions related to this name from all server
+    get_distinct_record_from_all_server(records, name);
+
+    // deal with these records
+    // create a map, key = username(have transaction with name), value = statistics struct
+    std::map<std::string, struct statistics> map;
+    for (int i = 0; i < records.size(); i++) {
+
+        struct transaction trans = records.at(i);
+        // if user is sender
+        if (trans.sender == name) {
+            if (map.count(trans.receiver)) {
+                map[trans.receiver].amount -= trans.amount;
+                map[trans.receiver].transactions++;
+            }
+            else {
+                struct statistics stat;
+                stat.transactions = 1;
+                stat.amount = -trans.amount;
+                map.insert(std::pair<std::string, struct statistics>(trans.receiver, stat));
+            }
+        }
+
+        // if user is receiver
+        if (trans.receiver == name) {
+            if (map.count(trans.sender)) {
+                map[trans.sender].amount += trans.amount;
+                map[trans.sender].transactions++;
+            }
+            else {
+                struct statistics stat;
+                stat.transactions = 1;
+                stat.amount = trans.amount;
+                map.insert(std::pair<std::string, struct statistics>(trans.sender, stat));
+            }
+        }
+
+    }
+
+    // store stats data
+    std::vector<statistics_main> stats;
+
+    // iterate map
+    std::map<std::string, struct statistics>::iterator iter;
+    for (iter = map.begin(); iter != map.end(); iter++) {
+
+        statistics_main statisticsMain;
+        statisticsMain.name = iter->first;
+        statisticsMain.amount = iter->second.amount;
+        statisticsMain.transactions = iter->second.transactions;
+        stats.push_back(statisticsMain);
+
+    }
+
+    // sort by transaction number
+    std::sort(stats.begin(), stats.end(), stats_compare);
+
+    // length send
+    int len_send;
+
+    // send length of messages to client A
+    for (int i = 0; i < stats.size(); i++) {
+        statistics_main statisticsMain = stats.at(i);
+        if (i == stats.size() - 1) {
+            sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+        }
+        else {
+            sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+        }
+        len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+        if (len_send <= 0) {
+            perror("Can't send statistics result to client A");
+        }
+    }
+
 }
 
 int main(int argc, char* argv[]) {
@@ -286,7 +454,7 @@ int main(int argc, char* argv[]) {
     while(1) {
 
         socklen_t client_A_len = sizeof(clientA_address);
-        int childSocket_A = accept(sockA, (struct sockaddr*)&clientA_address, &client_A_len);
+        childSocket_A = accept(sockA, (struct sockaddr*)&clientA_address, &client_A_len);
         if (childSocket_A == -1) {
             perror("Can't accept sockA");
         }
@@ -331,6 +499,10 @@ int main(int argc, char* argv[]) {
                     if (len_send <= 0) {
                         perror("Can't send the result of check wallet command to client A.");
                     }
+                }
+                // statistics
+                else if (split.at(0) == "STAT") {
+                    statistics(split.at(1));
                 }
                 // check wallet command
                 else {
