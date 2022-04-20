@@ -1,4 +1,4 @@
-all: serverM serverA serverB serverC clientA
+all: serverM serverA serverB serverC clientA clientB
 
 serverM: serverM.cpp
 	g++ serverM.cpp -o serverM
@@ -14,3 +14,6 @@ serverC: serverC.cpp
 
 clientA: clientA.cpp
 	g++ clientA.cpp -o clientA
+
+clientB: clientB.cpp
+	g++ clientB.cpp -o clientB

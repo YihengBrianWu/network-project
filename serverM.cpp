@@ -27,14 +27,18 @@
 char send_buffer[1024];
 char recv_buffer[1024];
 int sockA;
+int sockB;
 int sock_UDP;
 int childSocket_A;
+int childSocket_B;
 struct addrinfo *info_A;
+struct addrinfo *info_B;
 struct addrinfo *info_UDP;
 struct addrinfo *info_UDP_A;
 struct addrinfo *info_UDP_B;
 struct addrinfo *info_UDP_C;
 struct sockaddr_in clientA_address;
+struct sockaddr_in clientB_address;
 
 // data structure for transaction
 struct transaction {
@@ -609,8 +613,9 @@ void sorted_list() {
 /**
  * method to handle statistics operation
  * @param name user name
+ * @param client indicate which client need this statistics: 1 is client A, 2 is client B
  */
-void statistics(std::string name) {
+void statistics(std::string name, int client) {
 
     // length send
     int len_send;
@@ -619,9 +624,17 @@ void statistics(std::string name) {
     if (exist == INT_MIN) {
         // return error message
         sprintf(send_buffer, "NOTEXIST");
-        len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
-        if (len_send <= 0) {
-            perror("Can't send statistics result to client A");
+        if (client == 1) {
+            len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+            if (len_send <= 0) {
+                perror("Can't send statistics result to client A");
+            }
+        }
+        else if (client == 2) {
+            len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
+            if (len_send <= 0) {
+                perror("Can't send statistics result to client B");
+            }
         }
         return;
     }
@@ -686,20 +699,39 @@ void statistics(std::string name) {
     // sort by transaction number
     std::sort(stats.begin(), stats.end(), stats_compare);
 
-    // send length of messages to client A
-    for (int i = 0; i < stats.size(); i++) {
-        statistics_main statisticsMain = stats.at(i);
-        if (i == stats.size() - 1) {
-            sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
-        }
-        else {
-            sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
-        }
-        len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
-        if (len_send <= 0) {
-            perror("Can't send statistics result to client A");
+    // send messages to client A
+    if (client == 1) {
+        for (int i = 0; i < stats.size(); i++) {
+            statistics_main statisticsMain = stats.at(i);
+            if (i == stats.size() - 1) {
+                sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+            }
+            else {
+                sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+            }
+            len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+            if (len_send <= 0) {
+                perror("Can't send statistics result to client A");
+            }
         }
     }
+    // send messages to client A
+    else if (client == 2) {
+        for (int i = 0; i < stats.size(); i++) {
+            statistics_main statisticsMain = stats.at(i);
+            if (i == stats.size() - 1) {
+                sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+            }
+            else {
+                sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+            }
+            len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
+            if (len_send <= 0) {
+                perror("Can't send statistics result to client B");
+            }
+        }
+    }
+
 
 }
 
@@ -709,6 +741,13 @@ int main(int argc, char* argv[]) {
     sockA = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (sockA == -1) {
         perror("Can't create socket that connected to client A");
+        return -1;
+    }
+
+    // create sockets for client B
+    sockB = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    if (sockB == -1) {
+        perror("Can't create socket that connected to client B");
         return -1;
     }
 
@@ -729,6 +768,17 @@ int main(int argc, char* argv[]) {
 
     if (bind(sockA, info_A -> ai_addr, info_A -> ai_addrlen) != 0) {
         perror("Can't bind sockA to the port");
+        return -1;
+    }
+
+    // bind address and port for client A
+    info_B = new addrinfo;
+    info_B -> ai_family = AF_INET;
+    info_B -> ai_socktype = SOCK_STREAM;
+    getaddrinfo(HOST_NAME, TCP_PORT_B, 0, &info_B);
+
+    if (bind(sockB, info_B -> ai_addr, info_B -> ai_addrlen) != 0) {
+        perror("Can't bind sockB to the port");
         return -1;
     }
 
@@ -773,101 +823,216 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    // listen to sockB
+    if (listen(sockB, 10) != 0) {
+        perror("Can't listen sockB!");
+        close(sockB);
+        return -1;
+    }
+
     // boost up message
     printf("The main server is up and running.");
     printf("\n");
 
+    // using select to deal with clientA and clientB, reference code address: https://www.geeksforgeeks.org/tcp-and-udp-server-using-select/
+    // learn from it and modify it.
+    fd_set rset;
+    FD_ZERO(&rset);
+    // clear the descriptor set
+    FD_ZERO(&rset);
+
+    // get maxfd
+    int maxfdp1 = std::max(sockA, sockB) + 1;
+
     // read and write message
     while(1) {
 
-        socklen_t client_A_len = sizeof(clientA_address);
-        childSocket_A = accept(sockA, (struct sockaddr*)&clientA_address, &client_A_len);
-        if (childSocket_A == -1) {
-            perror("Can't accept sockA");
-        }
-        else {
-            memset(recv_buffer, 0, sizeof(recv_buffer));
-            if (recv(childSocket_A, recv_buffer, sizeof(recv_buffer), 0) <= 0) {
-                perror("Can't receive sockA");
+        // set listenfd and udpfd in readset
+        FD_SET(sockA, &rset);
+        FD_SET(sockB, &rset);
+
+        // select the ready descriptor
+        int nready = select(maxfdp1, &rset, NULL, NULL, NULL);
+
+        if (FD_ISSET(sockA, &rset)) {
+            socklen_t client_A_len = sizeof(clientA_address);
+            childSocket_A = accept(sockA, (struct sockaddr*)&clientA_address, &client_A_len);
+            if (childSocket_A == -1) {
+                perror("Can't accept sockA");
             }
             else {
-                if (strcmp(recv_buffer, "END") == 0) {
-                    printf("main server down");
-                    printf("\n");
-                    close(childSocket_A);
-                    break;
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                if (recv(childSocket_A, recv_buffer, sizeof(recv_buffer), 0) <= 0) {
+                    perror("Can't receive sockA");
                 }
-
-                // convert char[] recv_buffer to string
-                std::string message(recv_buffer);
-                // split incoming message
-                std::vector<std::string> split;
-                std::stringstream stream(message);
-                while(stream.good()) {
-                    std::string substring;
-                    std::getline(stream, substring, ',');
-                    split.push_back(substring);
-                }
-                // TXLIST command
-                if (split.at(0) == "TXLIST") {
-                    printf("A TXLIST request has been received.");
-                    printf("\n");
-                    sorted_list();
-                    printf("The sorted file is up and ready.");
-                    printf("\n");
-                }
-                // TXCOINS transfer money command
-                else if (split.at(0) == "TRANSFER") {
-                    printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientA_address.sin_port);
-                    printf("\n");
-
-                    std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
-                    sprintf(send_buffer, "%s", result.c_str());
-                    // send the result to the client A
-                    printf("The main server sent the result of the transaction to client A.");
-                    printf("\n");
-                    int len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
-                    if (len_send <= 0) {
-                        perror("Can't send the result of check wallet command to client A.");
-                    }
-                }
-                // statistics
-                else if (split.at(0) == "STAT") {
-                    printf("A STATS request has been received.");
-                    printf("\n");
-                    statistics(split.at(1));
-                }
-                // check wallet command
                 else {
-                    printf("The main server received input=\"%s\" from the client using TCP over port %d.", split.at(0).c_str(), clientA_address.sin_port);
-                    printf("\n");
-                    int result = check_wallet(message, true);
-                    if (result == INT_MIN) {
-                        printf("Username was not found on database.");
+                    if (strcmp(recv_buffer, "END") == 0) {
+                        printf("main server down");
+                        printf("\n");
+                        close(childSocket_A);
+                        break;
+                    }
+
+                    // convert char[] recv_buffer to string
+                    std::string message(recv_buffer);
+                    // split incoming message
+                    std::vector<std::string> split;
+                    std::stringstream stream(message);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ',');
+                        split.push_back(substring);
+                    }
+                    // TXLIST command
+                    if (split.at(0) == "TXLIST") {
+                        printf("A TXLIST request has been received.");
+                        printf("\n");
+                        sorted_list();
+                        printf("The sorted file is up and ready.");
                         printf("\n");
                     }
+                        // TXCOINS transfer money command
+                    else if (split.at(0) == "TRANSFER") {
+                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientA_address.sin_port);
+                        printf("\n");
+
+                        std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
+                        sprintf(send_buffer, "%s", result.c_str());
+                        // send the result to the client A
+                        printf("The main server sent the result of the transaction to client A.");
+                        printf("\n");
+                        int len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+                        if (len_send <= 0) {
+                            perror("Can't send the result of check wallet command to client A.");
+                        }
+                    }
+                        // statistics
+                    else if (split.at(0) == "STAT") {
+                        printf("A STATS request has been received.");
+                        printf("\n");
+                        statistics(split.at(1), 1);
+                    }
+                        // check wallet command
                     else {
-                        printf("The main server sent the current balance to client A.");
+                        printf("The main server received input=\"%s\" from the client using TCP over port %d.", split.at(0).c_str(), clientA_address.sin_port);
                         printf("\n");
+                        int result = check_wallet(message, true);
+                        if (result == INT_MIN) {
+                            printf("Username was not found on database.");
+                            printf("\n");
+                        }
+                        else {
+                            printf("The main server sent the current balance to client A.");
+                            printf("\n");
+                        }
+                        sprintf(send_buffer, "%d", result);
+                        int len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+                        if (len_send <= 0) {
+                            perror("Can't send the result of check wallet command to client A.");
+                        }
                     }
-                    sprintf(send_buffer, "%d", result);
-                    int len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
-                    if (len_send <= 0) {
-                        perror("Can't send the result of check wallet command to client A.");
-                    }
-                }
 //                printf("%s\n", buffer);
 //                int len_send = sendto(sock_UDP, buffer, strlen(buffer), 0, info_UDP_A -> ai_addr, info_UDP -> ai_addrlen);
 //                if (len_send <= 0) {
 //                    perror("Can't send message to serverA");
 //                }
-                close(childSocket_A);
+                    close(childSocket_A);
+                }
             }
         }
+
+        if (FD_ISSET(sockB, &rset)) {
+            socklen_t client_B_len = sizeof(clientB_address);
+            childSocket_B = accept(sockB, (struct sockaddr*)&clientB_address, &client_B_len);
+            if (childSocket_B == -1) {
+                perror("Can't accept sockB");
+            }
+            else {
+                memset(recv_buffer, 0, sizeof(recv_buffer));
+                if (recv(childSocket_B, recv_buffer, sizeof(recv_buffer), 0) <= 0) {
+                    perror("Can't receive sockB");
+                }
+                else {
+                    if (strcmp(recv_buffer, "END") == 0) {
+                        printf("main server down");
+                        printf("\n");
+                        close(childSocket_B);
+                        break;
+                    }
+
+                    // convert char[] recv_buffer to string
+                    std::string message(recv_buffer);
+                    // split incoming message
+                    std::vector<std::string> split;
+                    std::stringstream stream(message);
+                    while(stream.good()) {
+                        std::string substring;
+                        std::getline(stream, substring, ',');
+                        split.push_back(substring);
+                    }
+                    // TXLIST command
+                    if (split.at(0) == "TXLIST") {
+                        printf("A TXLIST request has been received.");
+                        printf("\n");
+                        sorted_list();
+                        printf("The sorted file is up and ready.");
+                        printf("\n");
+                    }
+                    // TXCOINS transfer money command
+                    else if (split.at(0) == "TRANSFER") {
+                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientB_address.sin_port);
+                        printf("\n");
+
+                        std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
+                        sprintf(send_buffer, "%s", result.c_str());
+                        // send the result to the client A
+                        printf("The main server sent the result of the transaction to client B.");
+                        printf("\n");
+                        int len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
+                        if (len_send <= 0) {
+                            perror("Can't send the result of check wallet command to client B.");
+                        }
+                    }
+                    // statistics
+                    else if (split.at(0) == "STAT") {
+                        printf("A STATS request has been received.");
+                        printf("\n");
+                        statistics(split.at(1), 2);
+                    }
+                    // check wallet command
+                    else {
+                        printf("The main server received input=\"%s\" from the client using TCP over port %d.", split.at(0).c_str(), clientB_address.sin_port);
+                        printf("\n");
+                        int result = check_wallet(message, true);
+                        if (result == INT_MIN) {
+                            printf("Username was not found on database.");
+                            printf("\n");
+                        }
+                        else {
+                            printf("The main server sent the current balance to client B.");
+                            printf("\n");
+                        }
+                        sprintf(send_buffer, "%d", result);
+                        int len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
+                        if (len_send <= 0) {
+                            perror("Can't send the result of check wallet command to client B.");
+                        }
+                    }
+//                printf("%s\n", buffer);
+//                int len_send = sendto(sock_UDP, buffer, strlen(buffer), 0, info_UDP_A -> ai_addr, info_UDP -> ai_addrlen);
+//                if (len_send <= 0) {
+//                    perror("Can't send message to serverA");
+//                }
+                    close(childSocket_B);
+                }
+            }
+        }
+
     }
 
     // close socket
     close(sockA);
+    close(sockB);
     close(sock_UDP);
     return 0;
 
