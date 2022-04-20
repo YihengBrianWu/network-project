@@ -1,6 +1,7 @@
 // Created by Yiheng Wu on 4/4/22.
 #include <stdio.h>
-#include <string.h>
+#include <string>
+#include <cstring>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

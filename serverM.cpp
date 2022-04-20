@@ -1,6 +1,6 @@
 // Created by Yiheng Wu on 4/2/22.
 #include <stdio.h>
-#include <string>
+#include <cstring>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -8,6 +8,8 @@
 #include <netdb.h>
 #include <string>
 #include <vector>
+#include <climits>
+#include <algorithm>
 #include <sstream>
 #include <fstream>
 #include <iostream>

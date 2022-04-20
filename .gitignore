@@ -45,3 +45,6 @@ serverM
 clientA
 serverB
 serverC
+
+# mac
+.DS_Store

@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <climits>
 
 #define HOST_NAME "127.0.0.1"
 #define TCP_PORT_A "25959"
