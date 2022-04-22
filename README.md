@@ -5,6 +5,8 @@ Section: 30560
 ## 1. How to start
 This project contains six cpp files, one make file, one README.
 
+This project completes all functionality include extra points functionality (stats).
+
 In terminal, type make all command. Then using ./serverM to start server M, ./serverA to start server A, ./serverB to start server B, ./serverC to start serverC. Then three servers are all running, please run server M first then server A, B, C.
 
 For client. If you want to use client A then type ./clientA. If you want to use client A then type ./clientB.
@@ -64,6 +66,8 @@ Server M will repeat this process for all 3 backends. When server M finish reque
 
 When statistics is done, it will send the result to client and show to the user.
 
-## 3. Reference
+## 3. Message exchange
+
+## 4. Reference
 In the server M, I use select() function to handle two connections to the server M. This part of code, the select part, is modified from https://www.geeksforgeeks.org/tcp-and-udp-server-using-select/ this website. Shout out to geeksforgeeks, help me a lot in this project.
 

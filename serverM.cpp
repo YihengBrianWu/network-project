@@ -24,8 +24,8 @@
 #define HOST_NAME "127.0.0.1"
 #define OUTPUT_FILE "alichain.txt"
 
-char send_buffer[1024];
-char recv_buffer[1024];
+char send_buffer[10240];
+char recv_buffer[10240];
 int sockA;
 int sockB;
 int sock_UDP;
@@ -45,12 +45,6 @@ struct transaction {
     int serial;
     std::string sender;
     std::string receiver;
-    int amount;
-};
-
-// data structure for statistics
-struct statistics {
-    int transactions;
     int amount;
 };
 
@@ -203,15 +197,19 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     printf("\n");
 
     // all failed cases
+    // both not exist
     if (sender_balance == INT_MIN && receiver_balance == INT_MIN) {
         return "BNEXIST"; // both not exist in the network
     }
+    // sender not exists
     if (sender_balance == INT_MIN) {
         return "SNEXIST"; // sender not exist in the network
     }
+    // receiver not exists
     if (receiver_balance == INT_MIN) {
         return "RNEXIST"; // receiver not exist in the network
     }
+    // balance not enough
     if (sender_balance < amount) {
         return "NOTENOUGH" + std::to_string(sender_balance); // balance is not enough to complete this transfer
     }
@@ -256,6 +254,23 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         }
     }
 
+    // request the serial number from server C
+    len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
+    if (len_send <= 0) {
+        perror("Can't send SERIAL command to server C.");
+    }
+    else {
+        // clear recv buffer
+        memset(recv_buffer, 0, sizeof(recv_buffer));
+        len_recv = recvfrom(sock_UDP, recv_buffer, sizeof(recv_buffer), 0, info_UDP_C -> ai_addr, &(info_UDP_C -> ai_addrlen));
+        if (len_recv <= 0) {
+            perror("Can't receive the result of TXCOINS command from server C.");
+        }
+        else {
+            serial_number = std::max(serial_number, atoi(recv_buffer));
+        }
+    }
+
     serial_number += 1;
 
     // after get the serial number, write it to the random backend server
@@ -274,7 +289,7 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
         len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_B -> ai_addr, info_UDP_B -> ai_addrlen);
         if (len_send <= 0) {
-            perror("Can't send transfer data to Server A.");
+            perror("Can't send transfer data to Server B.");
         }
     }
     // write to server C
@@ -282,7 +297,7 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         sprintf(send_buffer, "SAVE,%d,%s,%s,%d", serial_number, sender.c_str(), receiver.c_str(), amount);
         len_send = sendto(sock_UDP, send_buffer, strlen(send_buffer), 0, info_UDP_C -> ai_addr, info_UDP_C -> ai_addrlen);
         if (len_send <= 0) {
-            perror("Can't send transfer data to Server A.");
+            perror("Can't send transfer data to Server C.");
         }
     }
 
@@ -290,7 +305,7 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
 
 }
 
-// compare method for struct transaction, DESC by serial number
+// compare method for struct transaction, ASC by serial number
 bool record_compare(transaction a, transaction b) {
     return a.serial < b.serial;
 }
@@ -647,7 +662,7 @@ void statistics(std::string name, int client) {
 
     // deal with these records
     // create a map, key = username(have transaction with name), value = statistics struct
-    std::map<std::string, struct statistics> map;
+    std::map<std::string, struct statistics_main> map;
     for (int i = 0; i < records.size(); i++) {
 
         struct transaction trans = records.at(i);
@@ -658,10 +673,10 @@ void statistics(std::string name, int client) {
                 map[trans.receiver].transactions++;
             }
             else {
-                struct statistics stat;
+                struct statistics_main stat;
                 stat.transactions = 1;
                 stat.amount = -trans.amount;
-                map.insert(std::pair<std::string, struct statistics>(trans.receiver, stat));
+                map.insert(std::pair<std::string, struct statistics_main>(trans.receiver, stat));
             }
         }
 
@@ -672,10 +687,10 @@ void statistics(std::string name, int client) {
                 map[trans.sender].transactions++;
             }
             else {
-                struct statistics stat;
+                struct statistics_main stat;
                 stat.transactions = 1;
                 stat.amount = trans.amount;
-                map.insert(std::pair<std::string, struct statistics>(trans.sender, stat));
+                map.insert(std::pair<std::string, struct statistics_main>(trans.sender, stat));
             }
         }
 
@@ -685,7 +700,7 @@ void statistics(std::string name, int client) {
     std::vector<statistics_main> stats;
 
     // iterate map
-    std::map<std::string, struct statistics>::iterator iter;
+    std::map<std::string, struct statistics_main>::iterator iter;
     for (iter = map.begin(); iter != map.end(); iter++) {
 
         statistics_main statisticsMain;
@@ -701,34 +716,59 @@ void statistics(std::string name, int client) {
 
     // send messages to client A
     if (client == 1) {
+        std::string send_message;
         for (int i = 0; i < stats.size(); i++) {
             statistics_main statisticsMain = stats.at(i);
             if (i == stats.size() - 1) {
-                sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+                send_message.append(statisticsMain.name);
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.transactions));
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.amount));
+                // sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
             }
             else {
-                sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
-            }
-            len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
-            if (len_send <= 0) {
-                perror("Can't send statistics result to client A");
+                send_message.append(statisticsMain.name);
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.transactions));
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.amount));
+                send_message.append(",");
+                // sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
             }
         }
+        sprintf(send_buffer, "%s", send_message.c_str());
+        len_send = send(childSocket_A, send_buffer, strlen(send_buffer), 0);
+        if (len_send <= 0) {
+            perror("Can't send statistics result to client A");
+        }
     }
-    // send messages to client A
-    else if (client == 2) {
+    if (client == 1) {
+        std::string send_message;
         for (int i = 0; i < stats.size(); i++) {
             statistics_main statisticsMain = stats.at(i);
             if (i == stats.size() - 1) {
-                sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+                send_message.append(statisticsMain.name);
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.transactions));
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.amount));
+                // sprintf(send_buffer, "%s %d %d", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
             }
             else {
-                sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
+                send_message.append(statisticsMain.name);
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.transactions));
+                send_message.append(" ");
+                send_message.append(std::to_string(statisticsMain.amount));
+                send_message.append(",");
+                // sprintf(send_buffer, "%s %d %d,", statisticsMain.name.c_str(), statisticsMain.transactions, statisticsMain.amount);
             }
-            len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
-            if (len_send <= 0) {
-                perror("Can't send statistics result to client B");
-            }
+        }
+        sprintf(send_buffer, "%s", send_message.c_str());
+        len_send = send(childSocket_B, send_buffer, strlen(send_buffer), 0);
+        if (len_send <= 0) {
+            perror("Can't send statistics result to client B");
         }
     }
 
