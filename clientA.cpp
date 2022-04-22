@@ -1,5 +1,4 @@
 // Created by Yiheng Wu on 4/2/22.
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -185,23 +184,28 @@ int main(int argc, char* argv[]) {
             return -1;
         }
         std::string result(recv_buffer);
+        // both not exist
         if (result == "BNEXIST") {
             printf("Unable to proceed with the transaction as \"%s\" and \"%s\" are not part of the network.", argv[1], argv[2]);
             printf("\n");
         }
+        // sender not exist
         else if (result == "SNEXIST") {
             printf("Unable to proceed with the transaction as \"%s\" is not part of the network.",argv[1]);
             printf("\n");
         }
+        // receiver not exist
         else if (result == "RNEXIST") {
             printf("Unable to proceed with the transaction as \"%s\" is not part of the network.",argv[2]);
             printf("\n");
         }
+        // balance not enough
         else if (result.substr(0, 9) == "NOTENOUGH") {
             printf("\"%s\" was unable to transfer %s alicoins to \"%s\" because of insufficient balance. ", argv[1], argv[3], argv[2]);
             printf("The current balance of \"%s\" is : %s alicoins.", argv[1], result.substr(9).c_str());
             printf("\n");
         }
+        // legal transaction
         else {
             printf("\"%s\" successfully transferred %s alicoins to \"%s\". ", argv[1], argv[3], argv[2]);
             printf("The current balance of \"%s\" is : %d alicoins.", argv[1], std::stoi(result));

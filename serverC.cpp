@@ -22,7 +22,10 @@ int sock;
 struct addrinfo *info_server;
 struct addrinfo *info_server_m;
 
-
+/**
+ * to check if this user exist in this server, if exist send balance to server M, if not exist send INT_MIN to serverN
+ * @param user user name
+ */
 void check_wallet(std::string user) {
 
     // return value, how many coins should add or delete in this block
@@ -85,6 +88,9 @@ void check_wallet(std::string user) {
 
 }
 
+/**
+ * to find the largest serial number in this server
+ */
 void largest_serial_number() {
 
     // largest serial number in this block
@@ -128,6 +134,13 @@ void largest_serial_number() {
 
 }
 
+/**
+ * save transaction data in this server
+ * @param serial_number serial number
+ * @param sender sender name
+ * @param receiver receiver name
+ * @param amount transaction amount
+ */
 void save_data(int serial_number, std::string sender, std::string receiver, int amount) {
 
 
@@ -171,6 +184,9 @@ void save_data(int serial_number, std::string sender, std::string receiver, int 
 
 }
 
+/**
+ * send all transactions in this server to server M
+ */
 void send_all_transaction() {
 
     // send length
@@ -213,6 +229,10 @@ void send_all_transaction() {
 
 }
 
+/**
+ * send distinct user's transaction in this server to serverM
+ * @param name
+ */
 void send_distinct_transaction(std::string name) {
 
     // open file
