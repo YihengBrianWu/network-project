@@ -173,12 +173,6 @@ void save_data(int serial_number, std::string sender, std::string receiver, int 
 
     output << serial_number << " " << sender << " " << receiver << " " << amount;
 
-//    sprintf(buffer, "Log Saved.");
-//    int len_send = sendto(sock, buffer, strlen(buffer), 0, info_server_m -> ai_addr, info_server_m -> ai_addrlen);
-//    if (len_send <= 0) {
-//        perror("Can't send log saved successful message back to server M.");
-//    }
-
     output.close();
 
 }

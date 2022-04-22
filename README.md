@@ -67,7 +67,77 @@ Server M will repeat this process for all 3 backends. When server M finish reque
 When statistics is done, it will send the result to client and show to the user.
 
 ## 3. Message exchange
+Illustration: If the message send is enclosed in quotes, the sending message is just the content in quotes, otherwise it's an explanation, the value is not fixed.
 
+### 3.1 check wallet
+We assume the command type in is ./clientA\B user1
+
+| message order | message flow         | message send                                          |
+|---------------|----------------------|-------------------------------------------------------|
+| 1             | clientA\B -> serverM | "user1"                                               |
+| 2             | serverM -> serverA   | "user1"                                               |
+| 3             | serverA -> serverM   | "NOTEXIST" or current balance of user1 in serverA     |
+| 4             | serverM -> serverB   | "user1"                                               |
+| 5             | serverB -> serverM   | "NOTEXIST" or current balance of user1 in serverB     |
+| 6             | serverM -> serverC   | "user1"                                               |
+| 7             | serverC -> serverM   | "NOTEXIST" or current balance of user1 in serverC     |
+| 8 | serverM -> clientA\B | INT_MIN (means not exist) or current balance of user1 |
+
+### 3.2 transfer coins
+We assume the command type in is ./clientA\B user1 user2 100
+
+Illustration: I ignore the check wallet part for user1 and user2 in the following message flow.
+
+| message order | message flow         | message send                                          |
+|---------------|----------------------|-------------------------------------------------------|
+| 1 | clientA\B -> serverM | "TRANSFER,user1,user2,100" |
+
+If the transaction failed:
+
+| message order | message flow         | message send                                                                                                                                               |
+|---------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2             | serverM -> clientA\B | "BNEXIST" (Both not exist) or<br/>"SNEXIST" (sender not exists) or<br/>"RNEXIST" (receiver not exists) or<br/>"NOTENOUGH" (sender's balance is not enough) |
+
+If it's a legal transaction:
+
+| message order | message flow                                             | message send                                    |
+|---------------|----------------------------------------------------------|-------------------------------------------------|
+| 2             | serverM -> serverA                                       | "SERIAL" (get largest serial number in serverA) |
+| 3             | serverA -> serverM                                       | largest serial number in serverA                | 
+| 4             | serverM -> serverB                                       | "SERIAL" (get largest serial number in serverB) |
+| 5             | serverB -> serverM                                       | largest serial number in serverB                | 
+| 6             | serverM -> serverC                                       | "SERIAL" (get largest serial number in serverC) |
+| 7             | serverC -> serverM                                       | largest serial number in serverC                | 
+| 8             | serverM -> serverA or serverB or serverC (random choose) | "SAVE,serial_number,user1,user2,100"            |
+
+### 3.3 TXLIST
+We assume the command type in is ./clientA\B TXLIST
+
+| message order | message flow         | message send                 |
+|---------------|----------------------|------------------------------|
+| 1             | clientA\B -> serverM | "TXLIST"                     |
+| 2             | serverM -> serverA   | "GET" (get all transactions) |
+| 3             | serverA -> serverM   | all transactions in serverA  |
+| 4             | serverM -> serverB   | "GET" (get all transactions) |
+| 5             | serverB -> serverM   | all transactions in serverB  |
+| 6             | serverM -> serverC   | "GET" (get all transactions) |
+| 7             | serverC -> serverM   | all transactions in serverC  |
+
+### 3.4 statistics
+We assume the command type in is ./clientA\B user1 stats
+
+Illustration: I ignore the check wallet part of user1 in statistics process in the following message flow.
+
+| message order | message flow         | message send                                       |
+|---------------|----------------------|----------------------------------------------------|
+| 1             | clientA\B -> serverM | "STAT,user1"                                       |
+| 2             | serverM -> serverA   | "GETDISTNICT,user1" (get user1's all transactions) |
+| 3             | serverA -> serverM   | all user1's transactions in serverA                |
+| 4             | serverM -> serverB   | "GETDISTINCT,user1" (get user1's all transactions) |
+| 5             | serverB -> serverM   | all user1's transactions in serverB                |
+| 6             | serverM -> serverC   | "GETDISTINCT,user1" (get user1's all transactions) |
+| 7             | serverC -> serverM   | all user1's transactions in serverC                |
+| 8             | serverM -> clientA\B | sorted statistics data of user1 | 
 ## 4. Reference
 In the server M, I use select() function to handle two connections to the server M. This part of code, the select part, is modified from https://www.geeksforgeeks.org/tcp-and-udp-server-using-select/ this website. Shout out to geeksforgeeks, help me a lot in this project.
 

@@ -92,7 +92,7 @@ int check_wallet(std::string user, bool from_client) {
         }
         else {
             if (from_client) {
-                printf("The main server received transactions from Server A using UDP over port %s.", UDP_PORT);
+                printf("The main server received transactions from Server A using UDP over port %s.", UDP_PORT_A);
                 printf("\n");
             }
             std::string recv_message(recv_buffer);
@@ -189,11 +189,11 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
     int receiver_balance = check_wallet(receiver, false);
 
     // after querying both sender and receiver's feedback from three end servers.
-    printf("The main server received the feedback from server A using UDP over port %s.", UDP_PORT);
+    printf("The main server received the feedback from server A using UDP over port %s.", UDP_PORT_A);
     printf("\n");
-    printf("The main server received the feedback from server B using UDP over port %s.", UDP_PORT);
+    printf("The main server received the feedback from server B using UDP over port %s.", UDP_PORT_B);
     printf("\n");
-    printf("The main server received the feedback from server C using UDP over port %s.", UDP_PORT);
+    printf("The main server received the feedback from server C using UDP over port %s.", UDP_PORT_C);
     printf("\n");
 
     // all failed cases
