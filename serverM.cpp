@@ -287,6 +287,8 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         if (len_send <= 0) {
             perror("Can't send transfer data to Server A.");
         }
+        printf("The main server sent a save transaction request to server A.");
+        printf("\n");
     }
     // write to server B
     else if (random == 1) {
@@ -295,6 +297,8 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         if (len_send <= 0) {
             perror("Can't send transfer data to Server B.");
         }
+        printf("The main server sent a save transaction request to server B.");
+        printf("\n");
     }
     // write to server C
     else {
@@ -303,6 +307,8 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
         if (len_send <= 0) {
             perror("Can't send transfer data to Server C.");
         }
+        printf("The main server sent a save transaction request to server C.");
+        printf("\n");
     }
 
     return std::to_string(sender_balance - amount);
@@ -938,7 +944,7 @@ int main(int argc, char* argv[]) {
                     }
                         // TXCOINS transfer money command
                     else if (split.at(0) == "TRANSFER") {
-                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientA_address.sin_port);
+                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %s.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), TCP_PORT_A);
                         printf("\n");
 
                         std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
@@ -959,7 +965,7 @@ int main(int argc, char* argv[]) {
                     }
                         // check wallet command
                     else {
-                        printf("The main server received input=\"%s\" from the client using TCP over port %d.", split.at(0).c_str(), clientA_address.sin_port);
+                        printf("The main server received input=\"%s\" from the client using TCP over port %s.", split.at(0).c_str(), TCP_PORT_A);
                         printf("\n");
                         int result = check_wallet(message, true);
                         if (result == INT_MIN) {
@@ -1025,7 +1031,7 @@ int main(int argc, char* argv[]) {
                     }
                     // TXCOINS transfer money command
                     else if (split.at(0) == "TRANSFER") {
-                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %d.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), clientB_address.sin_port);
+                        printf("The main server received from %s to transfer %s coins to %s using TCP over port %s.", split.at(1).c_str(), split.at(3).c_str(), split.at(2).c_str(), TCP_PORT_B);
                         printf("\n");
 
                         std::string result = transfer_money(split.at(1), split.at(2), std::stoi(split.at(3)));
@@ -1046,7 +1052,7 @@ int main(int argc, char* argv[]) {
                     }
                     // check wallet command
                     else {
-                        printf("The main server received input=\"%s\" from the client using TCP over port %d.", split.at(0).c_str(), clientB_address.sin_port);
+                        printf("The main server received input=\"%s\" from the client using TCP over port %s.", split.at(0).c_str(), TCP_PORT_B);
                         printf("\n");
                         int result = check_wallet(message, true);
                         if (result == INT_MIN) {
