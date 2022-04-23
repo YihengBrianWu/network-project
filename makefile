@@ -1,19 +1,19 @@
 all: serverM serverA serverB serverC clientA clientB
 
 serverM: serverM.cpp
-	g++ serverM.cpp -o serverM
+	g++ -std=c++11 serverM.cpp -o serverM
 
 serverA: serverA.cpp
-	g++ serverA.cpp -o serverA
+	g++ -std=c++11 serverA.cpp -o serverA
 
 serverB: serverB.cpp
-	g++ serverB.cpp -o serverB
+	g++ -std=c++11 serverB.cpp -o serverB
 
 serverC: serverC.cpp
-	g++ serverC.cpp -o serverC
+	g++ -std=c++11 serverC.cpp -o serverC
 
 clientA: clientA.cpp
-	g++ clientA.cpp -o clientA
+	g++ -std=c++11 clientA.cpp -o clientA
 
 clientB: clientB.cpp
-	g++ clientB.cpp -o clientB
+	g++ -std=c++11 clientB.cpp -o clientB
