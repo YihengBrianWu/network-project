@@ -5,6 +5,8 @@ Section: 30560
 ## 1. How to start
 This project contains six cpp files, one make file, one README.
 
+This project use C++ 11.
+
 This project completes all functionality include extra points functionality (stats).
 
 In terminal, type make all command. Then using ./serverM to start server M, ./serverA to start server A, ./serverB to start server B, ./serverC to start serverC. Then three servers are all running, please run server M first then server A, B, C.

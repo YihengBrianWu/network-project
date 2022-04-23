@@ -183,6 +183,10 @@ std::string transfer_money (std::string sender, std::string receiver, int amount
 
     printf("The main server sent a request to server A.");
     printf("\n");
+    printf("The main server sent a request to server B.");
+    printf("\n");
+    printf("The main server sent a request to server C.");
+    printf("\n");
 
     // first let's check the balance of sender and receiver
     int sender_balance = check_wallet(sender, false);
