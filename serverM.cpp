@@ -24,8 +24,8 @@
 #define HOST_NAME "127.0.0.1"
 #define OUTPUT_FILE "alichain.txt"
 
-char send_buffer[10240];
-char recv_buffer[10240];
+char send_buffer[20480];
+char recv_buffer[20480];
 int sockA;
 int sockB;
 int sock_UDP;
@@ -743,7 +743,8 @@ void statistics(std::string name, int client) {
             perror("Can't send statistics result to client A");
         }
     }
-    if (client == 1) {
+    // send to client B
+    if (client == 2) {
         std::string send_message;
         for (int i = 0; i < stats.size(); i++) {
             statistics_main statisticsMain = stats.at(i);

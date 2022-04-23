@@ -16,8 +16,8 @@
 #define HOST_NAME "127.0.0.1"
 #define TCP_PORT_B "26959"
 
-char send_buffer[10240];
-char recv_buffer[10240];
+char send_buffer[20480];
+char recv_buffer[20480];
 
 int sock;
 struct addrinfo *info_server;
